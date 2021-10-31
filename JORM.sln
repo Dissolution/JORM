@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31717.71
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JORM", "JORM\JORM.csproj", "{18232024-98CD-4471-8315-A0675BC37B3E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "JORM", "JORM\JORM.csproj", "{18232024-98CD-4471-8315-A0675BC37B3E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleSandbox", "ConsoleSandbox\ConsoleSandbox.csproj", "{EDA052EE-6F13-4224-93E4-8D50DBBC6779}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{18232024-98CD-4471-8315-A0675BC37B3E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{18232024-98CD-4471-8315-A0675BC37B3E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{18232024-98CD-4471-8315-A0675BC37B3E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EDA052EE-6F13-4224-93E4-8D50DBBC6779}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EDA052EE-6F13-4224-93E4-8D50DBBC6779}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EDA052EE-6F13-4224-93E4-8D50DBBC6779}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EDA052EE-6F13-4224-93E4-8D50DBBC6779}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

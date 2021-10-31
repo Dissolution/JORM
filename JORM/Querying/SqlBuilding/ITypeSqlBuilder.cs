@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Text;
 
 namespace JORM.Querying.SqlBuilding
@@ -118,11 +120,12 @@ namespace JORM.Querying.SqlBuilding
 
     }
 
-    public class SqlBuilder<TBuilder> : ISqlBuilder<TBuilder>
-        where TBuilder : ISqlBuilder<TBuilder>
-    {
-        protected readonly List<Table> _tables;
-    }
+    // public class SqlBuilder<TBuilder> : ISqlBuilder<TBuilder>
+    //     where TBuilder : ISqlBuilder<TBuilder>
+    // {
+    //     protected readonly TableDictionary _tables;
+    //     protected readonly List<Column> _selects;
+    // }
 
     public static class ScratchPad
     {
@@ -150,9 +153,279 @@ namespace JORM.Querying.SqlBuilding
         }
     }
 
-    public record Table(string Name, string? Alias);
+    public class Table
+    {
+        public string Name { get; set; }
+        public string? Alias { get; set; }
 
-    public record Column(Table Table, string Name);
+        public Table(string name, string? alias = null)
+        {
+            this.Name = name;
+            this.Alias = alias;
+        }
+
+        public override string ToString()
+        {
+            if (string.IsNullOrWhiteSpace(Alias))
+                return Name;
+            return $"{Name} {Alias}";
+        }
+    }
+
+    public class EntityTable : Table
+    {
+        public Type EntityType { get; }
+
+        public EntityTable(Type entityType, string? alias = null)
+            : base(entityType.Name, alias)
+        {
+            this.EntityType = entityType;
+        }
+
+        public override string ToString()
+        {
+            if (string.IsNullOrWhiteSpace(Alias))
+                return $"[{EntityType.FullName}]";
+            return $"[{EntityType.FullName}] {Alias}";
+        }
+    }
+
+    public class Column
+    {
+        public Table Table { get; set; }
+        public string Name { get; set; }
+
+        public Column(Table table, string name)
+        {
+            this.Table = table;
+            this.Name = name;
+        }
+
+        public override string ToString()
+        {
+            if (string.IsNullOrWhiteSpace(Table.Alias))
+            {
+                return $"{Table.Name}.{Name}";
+            }
+            else
+            {
+                return $"{Table.Alias}.{Name}";
+            }
+        }
+    }
+
+    public class EntityColumn : Column
+    {
+        public PropertyInfo ColumnProperty { get; }
+
+        public EntityColumn(PropertyInfo property,
+                            Table table)
+            : base(table, property.Name)
+        {
+            this.ColumnProperty = property;
+        }
+    }
+
+    public static class TextHelper
+    {
+        public static void ConsumeWhitespace(this ReadOnlySpan<char> text, ref int index)
+        {
+            if (index < 0)
+            {
+                index = -1;
+            }
+            else if (index >= text.Length)
+            {
+                index = text.Length;
+            }
+            else
+            {
+                while (char.IsWhiteSpace(text[index]))
+                {
+                    index++;
+                    if (index == text.Length)
+                        return;
+                }
+            }
+        }
+
+        public static ReadOnlySpan<char> ConsumeDigits(this ReadOnlySpan<char> text, ref int index)
+        {
+            if (index < 0)
+            {
+                index = -1;
+                return default;
+            }
+            if (index >= text.Length)
+            {
+                index = text.Length;
+                return default;
+            }
+
+            int start = index;
+            while (char.IsDigit(text[index]))
+            {
+                index++;
+                if (index == text.Length)
+                    break;
+            }
+            return text.Slice(start, index - start);
+        }
+
+        public static string CaptureLeft(this ReadOnlySpan<char> text, int index, int count)
+        {
+            int left = index - count;
+            ReadOnlySpan<char> slice;
+            if (left < 0)
+            {
+                slice = text.Slice(0, count + left);
+            }
+            else
+            {
+                slice = text.Slice(left, count);
+            }
+            return new string(slice);
+        }
+    }
+
+    public class Clause
+    {
+        public static string Process(ReadOnlySpan<char> format, params object?[] args)
+        {
+            // Clean up
+            format = format.Trim();
+            var formatLen = format.Length;
+            var argsCount = args.Length;
+            var statement = new StringBuilder(format.Length + (2 * argsCount));
+            int i = 0;
+            int a = 0;
+            while (i < formatLen)
+            {
+                char c = format[i];
+                i += 1;
+                if (c == '?')
+                {
+                    if (i >= formatLen)
+                    {
+                        if (a >= argsCount)
+                        {
+                            i--;
+                            throw new ArgumentException($"{format.CaptureLeft(i, 10)}\"[{i}]: The final `?` argument placeholder wants index {a}; no argument with that index exist.", nameof(format));
+                        }
+                        statement.Append('?').Append(a);
+                        break;
+                    }  
+                    if (char.IsWhiteSpace(c = format[i]))
+                    {
+                        if (a >= argsCount)
+                        {
+                            i--;
+                            throw new ArgumentException($"{format.CaptureLeft(i, 10)}\"[{i}]: The `?` argument placeholder wants index {a}; no argument with that index exist.", nameof(format));
+                        }
+                        statement.Append('?').Append(a).Append(c);
+                        i++;
+                        a++;
+                        continue;
+                    }
+                    if (char.IsDigit(format[i]))
+                    {
+                        var digits = format.ConsumeDigits(ref i);
+                        Debug.Assert(digits.Length >= 1);
+                        a = int.Parse(digits);
+                        if (a >= argsCount)
+                        {
+                            throw new ArgumentException($"{format.CaptureLeft(i, 10)}\"[{i - 1}]: The `?` argument placeholder wants index {a}; no argument with that index exist.", nameof(format));
+                        }
+                        statement.Append('?').Append(a);
+                        i++;
+                        a++;
+                        continue;
+                    }
+
+                    throw new ArgumentException($"{format.CaptureLeft(i, 10)}\"[{i - 1}]: The `?` argument placeholder is followed by an illegal character", nameof(format));
+                }
+
+                if (c == '{')
+                {
+                    if (i >= formatLen)
+                    {
+                        throw new ArgumentException($"{format.CaptureLeft(i, 10)}\"[{i}]: The argument placeholder start `{{` has nothing after it", nameof(format));
+                    }
+                    // Escaped?
+                    if (format[i] == '{')
+                    {
+                        statement.Append('{');
+                        i++;
+                        continue;
+                    }
+                    format.ConsumeWhitespace(ref i);
+                    if (char.IsDigit(format[i]))
+                    {
+                        var slice = format.ConsumeDigits(ref i);
+                        format.ConsumeWhitespace(ref i);
+                        Debug.Assert(slice.Length >= 1);
+                        if (i >= formatLen)
+                        {
+                            throw new ArgumentException($"{format.CaptureLeft(i, 10)}\"[{i}]: The argument placeholder is missing the closing brace`}}`", nameof(format));
+                        }
+                        if (format[i] == '}')
+                        {
+                            a = int.Parse(slice);
+                            if (a >= argsCount)
+                            {
+                                throw new ArgumentException($"{format.CaptureLeft(i, 10)}\"[{i - 1}]: The `{{}}` argument placeholder wants index {a}; no argument with that index exist.", nameof(format));
+                            }
+                            statement.Append('?').Append(a);
+                            i++;
+                            a++;
+                            continue;
+                        }
+
+                        throw new ArgumentException($"{format.CaptureLeft(i, 10)}\"[{i}]: The argument placeholder is missing the closing brace`}}`", nameof(format));
+                    }
+
+                    throw new ArgumentException("Invalid character after { argument placeholder", nameof(format));
+                }
+
+                if (c == '}')
+                {
+                    if (i >= formatLen)
+                    {
+                        throw new ArgumentException($"{format.CaptureLeft(i, 10)}\"[{i}]: The argument placeholder end `}}` has no start", nameof(format));
+                    }
+                    
+                    if (format[i] == '}')
+                    {
+                        statement.Append('}');
+                        i++;
+                        continue;
+                    }
+
+                    throw new ArgumentException($"{format.CaptureLeft(i, 10)}\"[{i}]: The argument placeholder end `}}` has no start", nameof(format));
+                }
+
+                // This character we just append
+                statement.Append(c);
+            }
+
+            return statement.ToString();
+        }
+
+        public string Statement { get; set; }
+        public object?[] Arguments { get; set; }
+
+        public Clause(RawString statement, params object?[] args)
+        {
+            this.Statement = Process(statement.String);
+            this.Arguments = args;
+        }
+
+        public Clause(FormattableString statement)
+        {
+            this.Statement = Process(statement.Format);
+            this.Arguments = statement.GetArguments();
+        }
+    }
 
     public interface ISqlDialect
     {
@@ -183,30 +456,30 @@ namespace JORM.Querying.SqlBuilding
     {
         
 
-        private readonly List<Table> _tables;
+        private readonly List<(JoinType Join, Table Table)> _joinedTables;
         private readonly StringComparison _nameComparison;
 
         public TableDictionary(StringComparison comparison = StringComparison.CurrentCulture)
         {
-            _tables = new List<Table>(8);
+            _joinedTables = new List<(JoinType, Table)>(8);
             _nameComparison = comparison;
         }
 
-        public Table Register(string name, string? alias)
+        public Table Register(JoinType join, string name, string? alias)
         {
             if (string.IsNullOrWhiteSpace(alias))
             {
-                foreach (var tbl in _tables)
+                foreach (var (exJoin, exTable) in _joinedTables)
                 {
-                    if (string.Equals(tbl.Name, name, _nameComparison))
+                    if (string.Equals(exTable.Name, name, _nameComparison))
                     {
-                        return tbl;
+                        return table1;
                     }
                 }
             }
             else
             {
-                foreach (var tbl in _tables)
+                foreach (var tbl in _joinedTables)
                 {
                     if (string.Equals(tbl.Name, name, _nameComparison) &&
                         string.Equals(tbl.Alias, alias, _nameComparison))
@@ -215,14 +488,17 @@ namespace JORM.Querying.SqlBuilding
                     }
                 }
             }
-            var table = new Table(name, alias);
-            _tables.Add(table);
-            return table;
+
+            {
+                var table = new Table(name, alias);
+                _joinedTables.Add(table);
+                return table;
+            }
         }
 
         public Table? Lookup(string nameOrAlias)
         {
-            foreach (var table in _tables)
+            foreach (var table in _joinedTables)
             {
                 if (string.Equals(table.Name, nameOrAlias, _nameComparison))
                     return table;
