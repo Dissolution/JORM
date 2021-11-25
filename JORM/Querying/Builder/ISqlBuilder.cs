@@ -1,187 +1,182 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Data.Common;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
-using System.Runtime.CompilerServices;
+using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
+using JORM.Querying.SqlBuilding;
 
-using TextBuilder = System.Runtime.CompilerServices.DefaultInterpolatedStringHandler;
+namespace JORM.Querying.Builder;
 
-namespace JORM.Querying.Builder
+/* https://en.wikibooks.org/wiki/Structured_Query_Language
+ *
+ *
+ */
+
+
+public interface ISelectQueryBuilder : ISelectBuilder<ISelectQueryBuilder>
 {
-    /* https://en.wikibooks.org/wiki/Structured_Query_Language
-     *
-     *
-     */
 
-    public interface IFluentSqlBuilder<TBuilder>
-        where TBuilder : IFluentSqlBuilder<TBuilder>
+}
+
+public interface ITypeSelectQueryBuilder<TEntity> : 
+    ITypeSelectBuilder<TEntity, ITypeSelectQueryBuilder<TEntity>>,
+    ISelectBuilder<ITypeSelectQueryBuilder<TEntity>>
+{
+
+}
+
+public interface ISelectBuilder
+{
+    ISelectQuery Compile();
+}
+
+/// <summary>
+/// 
+/// </summary>
+/// <typeparam name="TBuilder"></typeparam>
+/// <see cref="https://en.wikibooks.org/wiki/Structured_Query_Language/SELECT:_Fundamentals"/>
+public interface ISelectBuilder<TBuilder> : ISelectBuilder
+    where TBuilder : class, ISelectBuilder
+{
+    TBuilder Distinct(bool distinct = true);
+
+    TBuilder Select(IProjection projection);
+
+    TBuilder Where(IWhereBuilder where);
+    TBuilder Where(Action<IWhereBuilder> where);
+}
+
+public interface IWhereBuilder
+{
+    IWhereBuilder And(IWhereBuilder left, IWhereBuilder right);
+    IWhereBuilder And(Action<IWhereBuilder> left, Action<IWhereBuilder> right);
+
+    IWhereBuilder Or(IWhereBuilder left, IWhereBuilder right);
+    IWhereBuilder Or(Action<IWhereBuilder> left, Action<IWhereBuilder> right);
+
+    IWhereBuilder Parse(RawString sql, params object?[] args);
+    IWhereBuilder Parse(FormattableString sql);
+    IWhereBuilder Parse(Expression expression);
+}
+
+
+public interface ITypeSelectBuilder<TEntity, TBuilder> : ISelectBuilder<TBuilder>
+    where TBuilder : class, ITypeSelectBuilder<TEntity, TBuilder>
+{
+    TBuilder Select<TProperty>(Expression<Func<TEntity, TProperty>> property);
+    TBuilder Select(params Expression<Func<TEntity, object?>>[] properties);
+}
+
+public interface IPreFromSelectBuilder<TBuilder>
+    where TBuilder : class, ISelectBuilder
+{
+    ISelectBuilder<TBuilder> From(RawString sql, Alias? alias = default);
+    ISelectBuilder<TBuilder> From(FormattableString sql, Alias? alias = default);
+    ISelectBuilder<TBuilder> From(Type entityType, Alias? alias = default);
+    ISelectBuilder<TBuilder> From(Expression expression, Alias? alias = default);
+    ITypeSelectQueryBuilder<TEntity> From<TEntity>(Alias? alias = default);
+}
+
+public static class Extensions
+{
+
+}
+
+public sealed class TableRef
+{
+
+}
+
+public interface IQuery
+{
+
+}
+
+public interface ISelectQuery : IQuery, IProjection
+{
+
+}
+
+public interface IProjection
+{
+    Alias Alias { get; }
+}
+
+public interface IProjectionParser
+{
+    IProjection Parse(SQL sql);
+}
+
+public sealed class Alias : IEquatable<Alias>, IEquatable<string>
+{
+    public static implicit operator Alias(string? alias) => new Alias(alias);
+
+    public static Alias Parse(string? alias) => new Alias(alias);
+
+    internal string? Value { get; set; }
+
+    private Alias(string? alias)
     {
+        this.Value = alias;
     }
 
-    public interface IQueryPart : IRenderable
+    public bool Equals(Alias? alias)
     {
-        void ApplyTo(Func<IDataParameter> createParameter, TextBuilder commandText);
+        if (alias is null)
+            return Value is null;
+        return string.Equals(alias.Value, this.Value);
     }
 
-    public interface ISelectQuery : IQueryPart, IRenderable
+    public bool Equals(string? alias)
     {
-
+        return string.Equals(alias, Value);
     }
 
-    public interface IFluentSelectBuilder<TBuilder>
-        where TBuilder : IFluentSqlBuilder<TBuilder>
+    public override bool Equals(object? obj)
     {
-        TBuilder Select(RawString projection);
-        TBuilder Select(FormattableString projection);
-        TBuilder Select(params RawString[] projections);
-        TBuilder Select(IEnumerable<string> projections);
-
-        TBuilder Select(Projection projection);
-
-        TBuilder Operation(ColumnOperation operation);
+        if (obj is string str)
+            return string.Equals(str, Value);
+        if (obj is Alias alias)
+            return string.Equals(alias.Value, Value);
+        return false;
     }
 
-    public interface IRenderable
+    [Obsolete("Alias is a mutable variable unsuitable for GetHashCode()")]
+    public override int GetHashCode()
     {
-        void Render(TextBuilder stringHandler);
-        string ToString()
-        {
-            var stringHandler = new TextBuilder();
-            Render(stringHandler);
-            return stringHandler.ToStringAndClear();
-        }
+        throw new NotImplementedException();
     }
 
-    public abstract class Projection : IQueryPart
+    public override string ToString()
     {
-        public abstract void Render(TextBuilder stringHandler);
-        public abstract void ApplyTo(DbCommand command, TextBuilder commandText);
-    }
-
-    public class ColumnProjection : Projection
-    {
-        public TableRef Table { get; init; }
-        public string Name { get; init; }
-        public string? Alias { get; internal set; }
-
-        public override void Render(DefaultInterpolatedStringHandler stringHandler)
-        {
-            Table.Render(stringHandler);
-            stringHandler.AppendLiteral(".");
-            stringHandler.AppendLiteral(Name);
-            if (Alias != null)
-            {
-                stringHandler.AppendLiteral(" ");
-                stringHandler.AppendLiteral(Alias);
-            }
-        }
-    }
-
-    public class ColumnOperationProjection : Projection
-    {
-        public ColumnOperation Operation { get; init; }
-        public List<ColumnProjection> Columns { get; }
-
-        public ColumnOperationProjection(ColumnOperation operation, IEnumerable<ColumnProjection> columns)
-        {
-            this.Operation = operation;
-            this.Columns = new List<ColumnProjection>(columns);
-            if (Columns.Count < 1)
-                throw new ArgumentException("There must be at least one ColumnProjection", nameof(columns));
-        }
-
-        public override void Render(DefaultInterpolatedStringHandler stringHandler)
-        {
-            Operation.Render(stringHandler);
-            stringHandler.AppendLiteral("(");
-            for (var i = 0; i < Columns.Count; i++)
-            {
-                if (i > 0)
-                    stringHandler.AppendLiteral(", ");
-                Columns[0].Render(stringHandler);
-            }
-            stringHandler.AppendLiteral(")");
-        }
-    }
-
-    public abstract class FunctionProjection : Projection
-    {
-        public abstract void Render(DefaultInterpolatedStringHandler stringHandler);
-    }
-
-    public class SelectFunctionProjection : FunctionProjection
-    {
-        protected ISelectQuery _selectQuery;
-
-        public SelectFunctionProjection(ISelectQuery selectQuery)
-        {
-            _selectQuery = selectQuery;
-        }
-
-        public override void Render(DefaultInterpolatedStringHandler stringHandler)
-        {
-            stringHandler.AppendLiteral("(");
-            _selectQuery.Render(stringHandler);
-            stringHandler.AppendLiteral(")");
-        }
-
-        public override void ApplyTo(DbCommand command)
-        {
-            
-        }
-    }
-
-    public class ValueProjection : Projection
-    {
-        internal static string GetFormat(Type type)
-        {
-            if (type == typeof())
-        }
-
-        public Type Type { get; init; }
-        public object? Value { get; init; }
-
-        public override void Render(DefaultInterpolatedStringHandler stringHandler)
-        {
-            stringHandler.AppendLiteral("'");
-            if (Value is ISpanFormattable spanFormattable)
-            {
-
-                stringHandler.AppendFormatted(spanFormattable);
-            }
-        }
-    }
-
-    public class ColumnOperation : IRenderable
-    {
-        public static ColumnOperation Count { get; }
-        public static ColumnOperation Max { get; }
-        public static ColumnOperation Min { get; }
-        public static ColumnOperation Sum { get; }
-        public static ColumnOperation Avg { get; }
-        public static ColumnOperation Concat { get; }
-
-        protected string _name;
-
-        protected ColumnOperation([CallerMemberName] string memberName = "")
-        {
-            _name = memberName.ToLower();
-        }
-
-        public void Render(DefaultInterpolatedStringHandler stringHandler)
-        {
-            stringHandler.AppendLiteral(_name);
-        }
-    }
-
-    public class TableRef : IRenderable
-    {
-        public void Render(DefaultInterpolatedStringHandler stringHandler)
-        {
-            throw new NotImplementedException();
-        }
+        return Value ?? "";
     }
 }
+
+public interface IColumn : IProjection
+{
+    string Name { get; }
+}
+
+public interface IAllColumns : IColumn
+{
+    string IColumn.Name => "*";
+}
+
+public interface IColumnFunction : IProjection
+{
+
+}
+
+public interface IFunction : IProjection
+{
+
+}
+
+public interface IFixedValue : IProjection
+{
+
+}
+

@@ -1,5 +1,6 @@
 ﻿
 
+/*
 using System;
 
 namespace JORM
@@ -112,4 +113,4 @@ namespace JORM
         public text Slice(int start, int length) => Text.Slice(start, length);
 
     }
-}
+}*/
