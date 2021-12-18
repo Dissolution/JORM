@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using JORM.Querying.Builder;
+using JORM.Text;
+using DefaultInterpolatedStringHandler = JORM.Text.DefaultInterpolatedStringHandler;
 
 namespace JORM
 {
@@ -12,9 +15,59 @@ namespace JORM
     // However, this example requires "ref struct" because it includes a DefaultInterpolatedStringHandler in its fields.
     public ref struct InterpolatedSqlHandler
     {
+        public static (string Sql, DbParam[] Parameters) Parse(FormattableString formattableString)
+        {
+            ReadOnlySpan<char> format = formattableString.Format;
+            int formatLen = format.Length;
+            var args = formattableString.GetArguments();
+            var sql = new StringHandler(formatLen + (args.Length * 2));
+            int i = 0;
+            int start = 0;
+            char ch;
+            while (i < formatLen)
+            {
+                ch = format[i];
+                i++;
+                if (ch == '}')
+                {
+                    // Has to have an escape
+                    if (i >= formatLen || format[i] != '}')
+                    {
+                        throw new ArgumentException($"FormattableString has an invalid argument hole closing brace '}}' at index {i - 1}",
+                                                    nameof(formattableString));
+                    }
+                    // Skip it
+                    i++;
+                }
+                else if (ch == '{')
+                {
+                    if (i >= formatLen)
+                    {
+                        throw new ArgumentException($"FormattableString has an invalid argument hole opening brace '{{' at index {i - 1}",
+                                                    nameof(formattableString));
+                    }
+
+                    // Check for escape
+                    if (format[i] == '{')
+                    {
+                        // Skip it
+                        i++;
+                    }
+
+                    // Clip from start to here
+                    var clip = format.Slice(start, i - start);
+                    sql.Append(clip);
+                }
+                else
+                {
+                    i++;
+                }
+            }
+        }
+
         // Internally we'll use DefaultInterpolatedStringHandler to build the query string.
         // This be more performant than reinventing the wheel.
-        private DefaultInterpolatedStringHandler _stringHandler;
+        private StringHandler _stringHandler;
 
         // This will maintain a list of parameters as we build the query string
         public readonly DbParam[] Parameters;
@@ -25,7 +78,7 @@ namespace JORM
         public InterpolatedSqlHandler(int literalLength, int formattedCount)
         {
             // Construct the inner handler, forwarding the same hints
-            _stringHandler = new DefaultInterpolatedStringHandler(literalLength, formattedCount);
+            _stringHandler = new StringHandler(literalLength + (formattedCount * 2));
 
             // Build an empty list of parameters with the capacity we'll need
             Parameters = new DbParam[formattedCount];
@@ -36,38 +89,28 @@ namespace JORM
         {
             // In this example, literals represent query text like "SELECT ..."
             // Forward literals to the inner handler to be added to the query string
-            _stringHandler.AppendLiteral(value);
+            _stringHandler.Append(value);
         }
 
-        public void AppendFormatted(ReadOnlySpan<char> value)
+        public void AppendFormatted(ReadOnlySpan<char> value, [CallerArgumentExpression("value")] string? format = null)
         {
             // Other backing implementations may be able to optimize this to avoid allocating a string
             // SqlParameters need strings not char spans, so forward to that implementation
-            AppendFormatted(value.ToString(), null);
+            AppendFormatted(value.ToString(), format);
         }
-
-        public void AppendFormatted<T>(T value) => AppendFormatted<T>(value, null);
 
         // There are a lot of AppendFormatted overloads we're required to implement
         // We could use alignment and format parameters for our own purposes, here we ignore them
 
-        public void AppendFormatted<T>(T value, string? format)
+        public void AppendFormatted<T>(T value, [CallerArgumentExpression("value")] string? format = null)
         {
             string name = GetParameterName(format);
-            _stringHandler.AppendLiteral(name);
+            _stringHandler.Append(name);
             Parameters[_parameterCount++] = new DbParam(name, typeof(T), value);
         }
 
-        public void AppendFormatted<T>(T value, int alignment, string? format) => AppendFormatted(value, format);
-
-        public void AppendFormatted<T>(T value, int alignment) => AppendFormatted(value, null);
-
-        // public void AppendFormatted(string? value, [CallerArgumentExpression("value")] string name = "") =>
-        //     AppendParameter(SqlDbType.NVarChar, value);
-        //
-        // public void AppendFormatted(string? value, int alignment = 0, string? format = null, [CallerArgumentExpression("value")] string name = "") =>
-        //     AppendParameter(SqlDbType.NVarChar, value);
-
+        public void AppendFormatted<T>(T value, int alignment, [CallerArgumentExpression("value")] string? format = null) => AppendFormatted(value, format);
+     
         private string GetParameterName(string? name)
         {
             if (name is null)

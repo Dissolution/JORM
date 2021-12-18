@@ -1,17 +1,29 @@
-﻿using JORM;
+﻿using System.Data.Common;
+using JORM;
 using Npgsql;
 
 var source = new Source(() => null!);//new NpgsqlConnection(null));
 
-int i = source.ExecuteNonQuery($"SELECT * FROM table WHERE id = {147:id}");
+int id = 147;
+string name = "Jesus";
+
+//int i = source.ExecuteNonQuery($"SELECT * FROM table WHERE id = {id} AND name = {name:NAM}");
 
 
+var tuple = InterpolatedSqlHandler.Parse($"SELECT * FROM table WHERE id = {id} AND name = {name:NAM}");
 
-
-
-
-
-
+// var factory = NpgsqlFactory.Instance;
+//
+// ISourceBuilder builder = default!;
+// builder.Provider(NpgsqlFactory.Instance)
+//        .Connection(f => (f.CreateConnection() as NpgsqlConnection)!)
+//        .Transaction(cmd => cmd.BeginTransaction())
+//        .Command(conn => conn.CreateCommand())
+//        .Parameter(cmd => cmd.CreateParameter());
+//
+//
+// NpgsqlConnection conn = default!;
+// conn.begintra
 
 
 
