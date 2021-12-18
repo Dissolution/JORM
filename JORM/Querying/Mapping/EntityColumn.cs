@@ -30,7 +30,7 @@ namespace JORM.Querying.SqlBuilding
         internal void SetValue(object entity, object? value) => _setValue(entity, value);
     }
 
-    public class EntityColumnDef<TEntity, TColumn> : EntityColumnDef
+    public class EntityColumnDef<TEntity, TColumn> : EntityColumnDef where TEntity : class
     {
         protected Action<TEntity, TColumn> _setValue;
         protected Func<TEntity, TColumn> _getValue;

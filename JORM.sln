@@ -5,7 +5,9 @@ VisualStudioVersion = 17.0.31717.71
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "JORM", "JORM\JORM.csproj", "{18232024-98CD-4471-8315-A0675BC37B3E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleSandbox", "ConsoleSandbox\ConsoleSandbox.csproj", "{EDA052EE-6F13-4224-93E4-8D50DBBC6779}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ConsoleSandbox", "ConsoleSandbox\ConsoleSandbox.csproj", "{EDA052EE-6F13-4224-93E4-8D50DBBC6779}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sandbox.Postgres", "Sandbox.Postgres\Sandbox.Postgres.csproj", "{03CCAD0B-88DC-408B-A834-91D7E3905EB6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{EDA052EE-6F13-4224-93E4-8D50DBBC6779}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EDA052EE-6F13-4224-93E4-8D50DBBC6779}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EDA052EE-6F13-4224-93E4-8D50DBBC6779}.Release|Any CPU.Build.0 = Release|Any CPU
+		{03CCAD0B-88DC-408B-A834-91D7E3905EB6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{03CCAD0B-88DC-408B-A834-91D7E3905EB6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{03CCAD0B-88DC-408B-A834-91D7E3905EB6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{03CCAD0B-88DC-408B-A834-91D7E3905EB6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

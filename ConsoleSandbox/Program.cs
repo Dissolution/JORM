@@ -1,4 +1,5 @@
 ﻿
+using System;
 using System.Diagnostics;
 using ConsoleSandbox;
 using JORM.Querying.Builder;
@@ -18,10 +19,10 @@ builder.From("table", "t");
 builder.From($"{entity}", "e");
 builder.From(entity.GetType(), "e");
 builder.From(() => entity, "e");
-builder.From<TestEntity>("e")
-    .Select(e => e.Id)
-    .Select(e => e.Name)
-    .Where(b => b.)
+// builder.From<TestEntity>("e")
+//     .Select(e => e.Id)
+//     .Select(e => e.Name)
+//     .Where(b => b.)
 
 
 //Console.WriteLine(statement);

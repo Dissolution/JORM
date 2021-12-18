@@ -24,4 +24,9 @@
     <PackageReference Include="Microsoft.Extensions.Logging" Version="5.0.0" />
   </ItemGroup>
 
+    <ItemGroup>
+        <Using Include="System.Data" />
+        <Using Include="System.Data.Common" />
+    </ItemGroup>
+
 </Project>
