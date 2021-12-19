@@ -65,26 +65,29 @@ namespace JORM
                     p.Value = value;
                     cmd.Parameters.Add(p);
                 }
+
                 return cmd.ExecuteNonQuery();
             }
         }
 
         public async Task<int> ExecuteNonQueryAsync(FormattableString sql, CancellationToken token = default)
         {
-            using (var conn = await CreateOpenConnectionAsync(token))
-            using (var cmd = conn.CreateCommand())
-            {
-                cmd.CommandText = sql.ToStringAndClear();
-                foreach (var (name, type, value) in sql.Parameters)
-                {
-                    var p = cmd.CreateParameter();
-                    p.ParameterName = name;
-                    p.DbType = _dbTypeMap[type];
-                    p.Value = value;
-                    cmd.Parameters.Add(p);
-                }
-                return await cmd.ExecuteNonQueryAsync(token);
-            }
+            // using (var conn = await CreateOpenConnectionAsync(token))
+            // using (var cmd = conn.CreateCommand())
+            // {
+            //     cmd.CommandText = sql.ToStringAndClear();
+            //     foreach (var (name, type, value) in sql.Parameters)
+            //     {
+            //         var p = cmd.CreateParameter();
+            //         p.ParameterName = name;
+            //         p.DbType = _dbTypeMap[type];
+            //         p.Value = value;
+            //         cmd.Parameters.Add(p);
+            //     }
+            //
+            //     return await cmd.ExecuteNonQueryAsync(token);
+            // }
+            throw new NotImplementedException();
         }
     }
 
@@ -92,7 +95,7 @@ namespace JORM
     public class Source<TProvider>
         where TProvider : DbProviderFactory
     {
-       
+
     }
 
     public interface ISourceBuilder
@@ -112,7 +115,8 @@ namespace JORM
         where TProvider : DbProviderFactory
         where TConnection : DbConnection
     {
-        ISourceBuilder<TProvider, TConnection, TTransaction> Transaction<TTransaction>(Func<TConnection, TTransaction> createTransaction)
+        ISourceBuilder<TProvider, TConnection, TTransaction> Transaction<TTransaction>(
+            Func<TConnection, TTransaction> createTransaction)
             where TTransaction : DbTransaction;
     }
 
@@ -121,7 +125,8 @@ namespace JORM
         where TConnection : DbConnection
         where TTransaction : DbTransaction
     {
-        ISourceBuilder<TProvider, TConnection, TTransaction, TCommand> Command<TCommand>(Func<TConnection, TCommand> createCommand)
+        ISourceBuilder<TProvider, TConnection, TTransaction, TCommand> Command<TCommand>(
+            Func<TConnection, TCommand> createCommand)
             where TCommand : DbCommand;
     }
 
@@ -131,10 +136,11 @@ namespace JORM
         where TTransaction : DbTransaction
         where TCommand : DbCommand
     {
-        ISourceBuilder<TProvider, TConnection, TTransaction, TCommand, TParameter> Parameter<TParameter>(Func<TCommand, TParameter> createParameter)
+        ISourceBuilder<TProvider, TConnection, TTransaction, TCommand, TParameter> Parameter<TParameter>(
+            Func<TCommand, TParameter> createParameter)
             where TParameter : DbParameter;
     }
-    
+
     public interface ISourceBuilder<TProvider, TConnection, TTransaction, TCommand, TParameter>
         where TProvider : DbProviderFactory
         where TConnection : DbConnection
@@ -144,3 +150,4 @@ namespace JORM
     {
 
     }
+}

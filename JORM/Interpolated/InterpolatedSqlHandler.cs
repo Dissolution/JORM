@@ -1,8 +1,8 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using JORM.Querying.Builder;
 using JORM.Text;
-using DefaultInterpolatedStringHandler = JORM.Text.DefaultInterpolatedStringHandler;
 
 namespace JORM
 {
@@ -20,7 +20,9 @@ namespace JORM
             ReadOnlySpan<char> format = formattableString.Format;
             int formatLen = format.Length;
             var args = formattableString.GetArguments();
-            var sql = new StringHandler(formatLen + (args.Length * 2));
+            var sql = new TextWriter(formatLen + (args.Length * 2));
+            var dbParams = new DbParam[args.Length];
+            int p = 0;
             int i = 0;
             int start = 0;
             char ch;
@@ -57,17 +59,29 @@ namespace JORM
                     // Clip from start to here
                     var clip = format.Slice(start, i - start);
                     sql.Append(clip);
+
+                    // Look for end
+
+
+                    Debug.Assert(p < args.Length);
+
+                    var pName = $@"p{p}";
+                    var pArg = args[p];
+                    dbParams[p++] = new DbParam(pName, pArg?.GetType() ?? typeof(object), pArg);
+                    sql.Append(pName);
                 }
                 else
                 {
                     i++;
                 }
             }
+
+            throw new NotImplementedException();
         }
 
         // Internally we'll use DefaultInterpolatedStringHandler to build the query string.
         // This be more performant than reinventing the wheel.
-        private StringHandler _stringHandler;
+        private TextWriter _textWriter;
 
         // This will maintain a list of parameters as we build the query string
         public readonly DbParam[] Parameters;
@@ -78,7 +92,7 @@ namespace JORM
         public InterpolatedSqlHandler(int literalLength, int formattedCount)
         {
             // Construct the inner handler, forwarding the same hints
-            _stringHandler = new StringHandler(literalLength + (formattedCount * 2));
+            _textWriter = new TextWriter(literalLength + (formattedCount * 2));
 
             // Build an empty list of parameters with the capacity we'll need
             Parameters = new DbParam[formattedCount];
@@ -89,7 +103,7 @@ namespace JORM
         {
             // In this example, literals represent query text like "SELECT ..."
             // Forward literals to the inner handler to be added to the query string
-            _stringHandler.Append(value);
+            _textWriter.Append(value);
         }
 
         public void AppendFormatted(ReadOnlySpan<char> value, [CallerArgumentExpression("value")] string? format = null)
@@ -105,7 +119,7 @@ namespace JORM
         public void AppendFormatted<T>(T value, [CallerArgumentExpression("value")] string? format = null)
         {
             string name = GetParameterName(format);
-            _stringHandler.Append(name);
+            _textWriter.Append(name);
             Parameters[_parameterCount++] = new DbParam(name, typeof(T), value);
         }
 
@@ -165,9 +179,9 @@ namespace JORM
         }
 
         // Forward to the inner handler
-        public readonly override string ToString() => _stringHandler.ToString();
+        public readonly override string ToString() => _textWriter.ToString();
 
         // Forward to the inner handler
-        public string ToStringAndClear() => _stringHandler.ToStringAndClear();
+        public string ToStringAndClear() => _textWriter.ToStringAndClear();
     }
 }
